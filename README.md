@@ -1,13 +1,13 @@
-# [Nome do projeto]
+# Cognita
 
-[Escreva um ou dois  parágrafo resumindo o objetivo do seu projeto.]
+O sistema Cognita nasce para solucionar uma lacuna fundamental no ecossistema de ferramentas de estudo digital: a fragmentação entre aplicativos de anotação de alta fidelidade, que tratam documentos como silos isolados, e as plataformas de Gestão de Conhecimento Pessoal (PKM), que, embora foquem na conexão de ideias, oferecem uma experiência rudimentar de interação com os materiais-fonte.   
+
+A proposta central do Cognita é unificar esses dois mundos, criando uma plataforma coesa para o estudo ativo. O objetivo é transformar um repositório passivo de informações em uma base de conhecimento dinâmica e interconectada, onde a inovação chave reside na construção de um grafo de conhecimento de forma automática, utilizando técnicas de Processamento de Linguagem Natural (PLN) para descobrir e visualizar conexões latentes entre os conceitos estudados pelo usuário. 
+
 
 ## Alunos integrantes da equipe
 
-* [Nome completo do aluno 1]
-* [Nome completo do aluno 2]
-* [Nome completo do aluno 3]
-* [Nome completo do aluno 4]
+* Lucas Hemétrio Teixeira
 
 ## Professores responsáveis
 
