@@ -20,12 +20,12 @@ Este diretório mantém os artefatos (memoriais, diagramas, documentos, modelos 
 	* **pgm.jpg**: Property graph model, usado como equivalente ao DER para descrever as relações entre entidades.
 
 * `/prototipos`
-	* **Cadastro.jpg**: Canvas do modelo de negócios.
-	* **Conexões - Grafo.jpg**: Canvas do modelo de negócios.
-	* **Login.jpg**: Canvas do modelo de negócios.
-	* **Nota digitada.jpg**: Canvas do modelo de negócios.
-	* **Nota escrita stylus pdf.jpg**: Canvas do modelo de negócios.
-	* **Nota escrita stylus.jpg**: Canvas do modelo de negócios.
+	* **Cadastro.jpg**
+	* **Conexões - Grafo.jpg**
+	* **Login.jpg**
+	* **Nota digitada.jpg**
+	* **Nota escrita stylus pdf.jpg**
+	* **Nota escrita stylus.jpg**
 
 * `./`
 	* **memorial.md**: Memorial descritivo da graduação do aluno Lucas Hemétrio Teixeira.
