@@ -1,3 +1,6 @@
 # Documentação do Projeto
 
-Inclua documentação do projeto, como relatórios da PROEX.
+* `./`
+	* **documentacao_projeto.docx.pdf**
+	* **documento_visao.pdf**
+	* **estudo_viabilidade.md**
