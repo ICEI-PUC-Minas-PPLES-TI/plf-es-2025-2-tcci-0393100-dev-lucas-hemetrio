@@ -29,3 +29,4 @@ Este diretório mantém os artefatos (memoriais, diagramas, documentos, modelos 
 
 * `./`
 	* **memorial.md**: Memorial descritivo da graduação do aluno Lucas Hemétrio Teixeira.
+	* **Projeto-PreBanca_Atividade_A6.pdf**: Documentação do Projeto Cognita para aprovação da pré banca.
