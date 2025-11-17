@@ -1,4 +1,5 @@
 # Divulgação: Vídeo do Projeto
 
-Nesta pasta inclua arquivos de vídeo produzidos para divulgação do projeto e seus resutados.
+* `./`
+	* **Video-PreBanca_Atividade_A6.mp4**: Vídeo de apresentação do Projeto Cognita para aprovação da pré banca.
 
