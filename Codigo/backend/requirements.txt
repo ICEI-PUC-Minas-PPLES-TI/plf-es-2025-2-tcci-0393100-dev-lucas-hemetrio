@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+neomodel
+python-jose[cryptography]
+passlib[bcrypt]
+pydantic[email]
+python-multipart
+pydantic-settings
