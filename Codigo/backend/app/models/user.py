@@ -5,9 +5,12 @@ from neomodel import (
     BooleanProperty,
     DateTimeProperty,
     EmailProperty,
+    RelationshipTo,
     StringProperty,
     StructuredNode,
 )
+
+from app.models.project import Project
 
 
 def _utc_now():
@@ -21,3 +24,4 @@ class User(StructuredNode):
     hashed_password = StringProperty(required=True)
     is_active = BooleanProperty(default=True)
     created_at = DateTimeProperty(default=_utc_now)
+    projects = RelationshipTo(Project, "has")
