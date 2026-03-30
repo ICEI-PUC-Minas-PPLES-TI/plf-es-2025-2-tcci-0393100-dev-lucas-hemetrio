@@ -11,5 +11,12 @@ class Settings(BaseSettings):
     NEO4J_URL: str
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8080"]
 
+    MINIO_ENDPOINT: str = "localhost:9000"
+    MINIO_ACCESS_KEY: str = ""
+    MINIO_SECRET_KEY: str = ""
+    MINIO_BUCKET_NAME: str = "cognita-documents"
+    MINIO_USE_SSL: bool = False
+    STORAGE_BACKEND: str = "minio"
+
 
 settings = Settings()

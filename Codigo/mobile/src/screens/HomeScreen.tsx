@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { projectService } from '@/services/projectService';
 import type { Project } from '@/types/project';
+import DocumentList from '@/components/DocumentList';
 import { Menu, PanelRightClose } from 'lucide-react-native/icons';
 
 
@@ -267,7 +268,7 @@ export default function HomeScreen() {
               <>
                 <Text className="text-2xl font-bold text-gray-900">{selectedProject.name}</Text>
 
-                <View className="mt-6 flex-row flex-wrap gap-3">
+                <View className="mt-4 flex-row flex-wrap gap-3">
                   <TouchableOpacity
                     className="rounded-2xl border border-gray-200 bg-white px-4 py-3"
                     activeOpacity={0.85}
@@ -283,6 +284,8 @@ export default function HomeScreen() {
                     <Text className="text-sm font-semibold text-red-700">Excluir projeto</Text>
                   </TouchableOpacity>
                 </View>
+
+                <DocumentList projectUid={selectedProject.uid} />
               </>
             ) : (
               <View className="flex-1 items-center justify-center px-6">
