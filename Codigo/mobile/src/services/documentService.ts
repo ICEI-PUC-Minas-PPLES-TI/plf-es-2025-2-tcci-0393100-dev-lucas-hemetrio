@@ -1,4 +1,4 @@
-import apiClient from '@/api/client';
+import apiClient, { API_BASE_URL } from '@/api/client';
 import type { Document } from '@/types/document';
 
 export const documentService = {
@@ -31,5 +31,29 @@ export const documentService = {
 
   async deleteDocument(projectUid: string, docUid: string): Promise<void> {
     await apiClient.delete(`/projects/${projectUid}/documents/${docUid}`);
+  },
+
+  async getDocumentUrl(projectUid: string, docUid: string): Promise<string> {
+    const { data } = await apiClient.get<{ url: string }>(
+      `/projects/${projectUid}/documents/${docUid}/url`,
+    );
+    return data.url;
+  },
+
+  getDocumentStreamUrl(projectUid: string, docUid: string): string {
+    return `${API_BASE_URL}/projects/${projectUid}/documents/${docUid}/stream`;
+  },
+
+  async getDocumentBase64(projectUid: string, docUid: string): Promise<string> {
+    const response = await apiClient.get(
+      `/projects/${projectUid}/documents/${docUid}/stream`,
+      { responseType: 'arraybuffer', timeout: 30000 },
+    );
+    const bytes = new Uint8Array(response.data as ArrayBuffer);
+    const chunks: string[] = [];
+    for (let i = 0; i < bytes.length; i += 8192) {
+      chunks.push(String.fromCharCode(...bytes.subarray(i, i + 8192)));
+    }
+    return 'data:application/pdf;base64,' + btoa(chunks.join(''));
   },
 };

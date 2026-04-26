@@ -8,6 +8,8 @@ import { Document, DocumentStatus } from '@/types/document';
 
 interface Props {
   projectUid: string;
+  selectedDocumentId?: string | null;
+  onSelectDocument?: (uid: string) => void;
 }
 
 const STATUS_STYLES: Record<DocumentStatus, { container: string; text: string; label: string }> = {
@@ -28,7 +30,7 @@ const STATUS_STYLES: Record<DocumentStatus, { container: string; text: string; l
   },
 };
 
-export default function DocumentList({ projectUid }: Props) {
+export default function DocumentList({ projectUid, selectedDocumentId, onSelectDocument }: Props) {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -110,37 +112,44 @@ export default function DocumentList({ projectUid }: Props) {
 
   function renderItem({ item }: { item: Document }) {
     const isTemp = item.uid.startsWith('temp-');
+    const isSelected = item.uid === selectedDocumentId;
     const statusStyle = STATUS_STYLES[item.status] ?? STATUS_STYLES[DocumentStatus.UPLOADING];
-    const formattedDate = new Date(item.created_at).toLocaleDateString('pt-BR');
 
     return (
-      <View className="mb-3 flex-row items-center rounded-2xl border border-gray-100 bg-white p-4">
-        <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
-          <FileText size={20} color="#6B7280" />
-        </View>
-
-        <View className="flex-1">
-          <Text className="text-sm font-semibold text-gray-900" numberOfLines={1}>
-            {item.title}
-          </Text>
-          <View className="mt-1.5 flex-row items-center gap-2">
-            <View className={statusStyle.container}>
-              <Text className={statusStyle.text}>{statusStyle.label}</Text>
-            </View>
-            <Text className="text-xs text-gray-400">{formattedDate}</Text>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => !isTemp && onSelectDocument?.(item.uid)}
+        className={`mb-3 rounded-2xl border p-4 ${
+          isSelected ? 'border-primary bg-blue-50' : 'border-gray-100 bg-white'
+        }`}
+      >
+        <View className="flex-row items-center">
+          <View className="mr-3 h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+            <FileText size={20} color={isSelected ? '#3B82F6' : '#6B7280'} />
           </View>
-        </View>
 
-        {!isTemp && (
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => confirmDelete(item)}
-            className="ml-2 p-1"
-          >
-            <Trash2 size={18} color="#EF4444" />
-          </TouchableOpacity>
-        )}
-      </View>
+          <View className="flex-1">
+            <Text className="text-sm font-semibold text-gray-900" numberOfLines={1}>
+              {item.title}
+            </Text>
+            <View className="mt-1.5">
+              <View className={`self-start ${statusStyle.container}`}>
+                <Text className={statusStyle.text}>{statusStyle.label}</Text>
+              </View>
+            </View>
+          </View>
+
+          {!isTemp && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => confirmDelete(item)}
+              className="ml-2 shrink-0 p-1"
+            >
+              <Trash2 size={18} color="#EF4444" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </TouchableOpacity>
     );
   }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Component, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,7 +16,40 @@ import { useAuth } from '@/context/AuthContext';
 import { projectService } from '@/services/projectService';
 import type { Project } from '@/types/project';
 import DocumentList from '@/components/DocumentList';
+import AnnotationList from '@/components/AnnotationList';
+import CanvasEditor from '@/components/CanvasEditor';
+import type { Annotation } from '@/types/annotation';
 import { Menu, PanelRightClose } from 'lucide-react-native/icons';
+
+class PanelErrorBoundary extends Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: '#DC2626', marginBottom: 8 }}>
+            Erro ao carregar painel
+          </Text>
+          <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center' }}>
+            {this.state.error.message}
+          </Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 
 export default function HomeScreen() {
@@ -28,6 +61,11 @@ export default function HomeScreen() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'documents' | 'annotations'>('documents');
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [selectedAnnotation, setSelectedAnnotation] = useState<Annotation | null>(null);
+  const [pendingAnnotationDocUid, setPendingAnnotationDocUid] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(isTablet);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'rename'>('create');
@@ -52,6 +90,18 @@ export default function HomeScreen() {
       setSelectedProjectId(projects[0]?.uid ?? null);
     }
   }, [projects, selectedProjectId]);
+
+  useEffect(() => {
+    setSelectedDocumentId(null);
+    setSelectedAnnotationId(null);
+    setSelectedAnnotation(null);
+  }, [selectedProjectId]);
+
+  useEffect(() => {
+    setSelectedDocumentId(null);
+    setSelectedAnnotationId(null);
+    setSelectedAnnotation(null);
+  }, [activeTab]);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.uid === selectedProjectId) ?? null,
@@ -266,26 +316,140 @@ export default function HomeScreen() {
           <View className="flex-1 rounded-3xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
             {selectedProject ? (
               <>
-                <Text className="text-2xl font-bold text-gray-900">{selectedProject.name}</Text>
+                {/* Header do projeto */}
+                <View className="mb-4 flex-row items-center justify-between">
+                  <Text className="text-2xl font-bold text-gray-900">{selectedProject.name}</Text>
+                  <View className="flex-row gap-2">
+                    <TouchableOpacity
+                      className="rounded-2xl border border-gray-200 bg-white px-3 py-2"
+                      activeOpacity={0.85}
+                      onPress={() => openRenameProjectModal(selectedProject)}
+                    >
+                      <Text className="text-xs font-semibold text-gray-800">Renomear</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2"
+                      activeOpacity={0.85}
+                      onPress={() => confirmDeleteProject(selectedProject)}
+                    >
+                      <Text className="text-xs font-semibold text-red-700">Excluir</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
 
-                <View className="mt-4 flex-row flex-wrap gap-3">
+                {/* Tabs */}
+                <View style={{ marginBottom: 16, flexDirection: 'row', gap: 4, borderRadius: 16, borderWidth: 1, borderColor: '#F3F4F6', backgroundColor: '#F3F4F6', padding: 4 }}>
                   <TouchableOpacity
-                    className="rounded-2xl border border-gray-200 bg-white px-4 py-3"
+                    style={{ flex: 1, borderRadius: 12, paddingVertical: 8, backgroundColor: activeTab === 'documents' ? '#FFFFFF' : 'transparent' }}
                     activeOpacity={0.85}
-                    onPress={() => openRenameProjectModal(selectedProject)}
+                    onPress={() => setActiveTab('documents')}
                   >
-                    <Text className="text-sm font-semibold text-gray-800">Renomear projeto</Text>
+                    <Text style={{ textAlign: 'center', fontSize: 14, fontWeight: '600', color: activeTab === 'documents' ? '#111827' : '#6B7280' }}>
+                      Documentos
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3"
+                    style={{ flex: 1, borderRadius: 12, paddingVertical: 8, backgroundColor: activeTab === 'annotations' ? '#FFFFFF' : 'transparent' }}
                     activeOpacity={0.85}
-                    onPress={() => confirmDeleteProject(selectedProject)}
+                    onPress={() => setActiveTab('annotations')}
                   >
-                    <Text className="text-sm font-semibold text-red-700">Excluir projeto</Text>
+                    <Text style={{ textAlign: 'center', fontSize: 14, fontWeight: '600', color: activeTab === 'annotations' ? '#111827' : '#6B7280' }}>
+                      Anotações
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
-                <DocumentList projectUid={selectedProject.uid} />
+                {/* Split view */}
+                <PanelErrorBoundary>
+                <View className="flex-1 flex-row gap-4">
+                  {activeTab === 'documents' ? (
+                    <>
+                      <View className="w-72">
+                        <DocumentList
+                          projectUid={selectedProject.uid}
+                          selectedDocumentId={selectedDocumentId}
+                          onSelectDocument={setSelectedDocumentId}
+                        />
+                      </View>
+                      <View className="flex-1">
+                        {selectedDocumentId ? (
+                          <CanvasEditor
+                            key={selectedDocumentId}
+                            projectUid={selectedProject.uid}
+                            documentUid={selectedDocumentId}
+                            onSaved={(annotation) => {
+                              setSelectedAnnotation(annotation);
+                              setSelectedAnnotationId(annotation.uid);
+                            }}
+                          />
+                        ) : (
+                          <View className="flex-1 items-center justify-center">
+                            <Text className="text-sm text-gray-400">Selecione um documento para visualizar.</Text>
+                          </View>
+                        )}
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <View className="w-72">
+                        <AnnotationList
+                          projectUid={selectedProject.uid}
+                          selectedAnnotationId={selectedAnnotationId}
+                          onSelectAnnotation={(annotation) => {
+                            setSelectedAnnotationId(annotation.uid);
+                            setSelectedAnnotation(annotation);
+                            setPendingAnnotationDocUid(null);
+                          }}
+                          onNew={() => {
+                            setSelectedAnnotationId('new');
+                            setSelectedAnnotation(null);
+                            setPendingAnnotationDocUid(null);
+                          }}
+                        />
+
+
+
+
+                        
+                      </View>
+                      <View className="flex-1">
+                        {selectedAnnotationId === 'new' ? (
+                          <CanvasEditor
+                            key="new"
+                            projectUid={selectedProject.uid}
+                            documentUid={pendingAnnotationDocUid ?? undefined}
+                            onSaved={(annotation) => {
+                              setSelectedAnnotationId(annotation.uid);
+                              setSelectedAnnotation(annotation);
+                              setPendingAnnotationDocUid(null);
+                            }}
+                          />
+                        ) : selectedAnnotation ? (
+                          <CanvasEditor
+                            key={selectedAnnotation.uid}
+                            projectUid={selectedProject.uid}
+                            documentUid={selectedAnnotation.document_uid ?? undefined}
+                            annotationUid={selectedAnnotation.uid}
+                            initialTitle={selectedAnnotation.title}
+                            onSaved={(annotation) => {
+                              setSelectedAnnotation(annotation);
+                            }}
+                          />
+                        ) : (
+                          <View className="flex-1 items-center justify-center gap-4 px-8">
+                            <Text className="text-center text-base font-semibold text-gray-800">
+                              Nenhuma anotação selecionada
+                            </Text>
+                            <Text className="text-center text-sm text-gray-500">
+                              Toque em "Nova" para criar uma anotação ou selecione uma existente.
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </>
+                  )}
+                </View>
+                </PanelErrorBoundary>
               </>
             ) : (
               <View className="flex-1 items-center justify-center px-6">

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 
-from neomodel import DateTimeProperty, StringProperty, StructuredNode
+from neomodel import DateTimeProperty, RelationshipTo, StringProperty, StructuredNode
 
 
 def _utc_now():
@@ -21,3 +21,4 @@ class Document(StructuredNode):
     file_path = StringProperty(required=True)
     status = StringProperty(default=DocumentStatus.UPLOADING.value)
     created_at = DateTimeProperty(default=_utc_now)
+    annotations = RelationshipTo('app.models.annotation.Annotation', 'CONTAINS')

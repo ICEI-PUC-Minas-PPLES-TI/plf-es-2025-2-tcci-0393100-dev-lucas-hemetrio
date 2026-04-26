@@ -36,20 +36,30 @@ function AppNavigator() {
   );
 }
 
+function LoadingScreen() {
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' }}>
+      <ActivityIndicator size="large" color="#3B82F6" />
+    </View>
+  );
+}
+
+const LoadingStack = createNativeStackNavigator();
+
 export default function RootNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
 
-  if (isLoading) {
-    return (
-      <View className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator size="large" color="#3B82F6" />
-      </View>
-    );
-  }
-
   return (
     <NavigationContainer>
-      {isAuthenticated ? <AppNavigator /> : <AuthNavigator />}
+      {isLoading ? (
+        <LoadingStack.Navigator screenOptions={{ headerShown: false }}>
+          <LoadingStack.Screen name="Loading" component={LoadingScreen} />
+        </LoadingStack.Navigator>
+      ) : isAuthenticated ? (
+        <AppNavigator />
+      ) : (
+        <AuthNavigator />
+      )}
     </NavigationContainer>
   );
 }

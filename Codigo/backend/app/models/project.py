@@ -13,3 +13,4 @@ class Project(StructuredNode):
     name = StringProperty(required=True)
     created_at = DateTimeProperty(default=_utc_now)
     documents = RelationshipTo('app.models.document.Document', 'CONTAINS')
+    annotations = RelationshipTo('app.models.annotation.Annotation', 'CONTAINS')

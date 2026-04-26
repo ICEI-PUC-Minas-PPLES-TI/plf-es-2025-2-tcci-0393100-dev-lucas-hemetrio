@@ -1,4 +1,5 @@
 import io
+from datetime import timedelta
 
 from minio import Minio
 
@@ -33,3 +34,18 @@ class MinioStorageBackend(StorageBackend):
 
     def delete_file(self, object_name: str) -> None:
         self._client.remove_object(self._bucket, object_name)
+
+    def get_presigned_url(self, object_name: str, expires_seconds: int = 3600) -> str:
+        return self._client.presigned_get_object(
+            self._bucket,
+            object_name,
+            expires=timedelta(seconds=expires_seconds),
+        )
+
+    def read_file(self, object_name: str) -> bytes:
+        response = self._client.get_object(self._bucket, object_name)
+        try:
+            return response.read()
+        finally:
+            response.close()
+            response.release_conn()

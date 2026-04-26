@@ -3,9 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth
-from app.api.routes import documents
-from app.api.routes import projects
+from app.api.routes import annotations, auth, documents, projects
 from app.core.config import settings
 from app.db.database import connect_to_db
 
@@ -32,4 +30,9 @@ app.include_router(
     documents.router,
     prefix="/api/projects/{project_uid}/documents",
     tags=["documents"],
+)
+app.include_router(
+    annotations.router,
+    prefix="/api/projects/{project_uid}/annotations",
+    tags=["annotations"],
 )

@@ -2,10 +2,12 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import { getToken, deleteToken } from '@/storage/tokenStorage';
 
-const BASE_URL =
+export const API_BASE_URL =
   Platform.OS === 'android'
     ? 'http://10.0.2.2:8000/api'
     : 'http://localhost:8000/api';
+
+const BASE_URL = API_BASE_URL;
 
 const apiClient = axios.create({
   baseURL: BASE_URL,

@@ -67,6 +67,55 @@ def list_documents(
     return sorted(project.documents.all(), key=lambda d: d.created_at, reverse=True)
 
 
+@router.get("/{doc_uid}/url")
+def get_document_url(
+    project_uid: str,
+    doc_uid: str,
+    current_user: User = Depends(get_current_user),
+    storage: StorageBackend = Depends(get_storage),
+):
+    project = _get_owned_project(current_user, project_uid)
+    document = next(
+        (d for d in project.documents.all() if d.uid == doc_uid),
+        None,
+    )
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+    url = storage.get_presigned_url(document.file_path)
+    return {"url": url}
+
+
+@router.get("/{doc_uid}/stream")
+def stream_document(
+    project_uid: str,
+    doc_uid: str,
+    current_user: User = Depends(get_current_user),
+    storage: StorageBackend = Depends(get_storage),
+):
+    project = _get_owned_project(current_user, project_uid)
+    document = next(
+        (d for d in project.documents.all() if d.uid == doc_uid),
+        None,
+    )
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+    pdf_bytes = storage.read_file(document.file_path)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{document.title}"',
+            "Content-Length": str(len(pdf_bytes)),
+        },
+    )
+
+
 @router.delete("/{doc_uid}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document(
     project_uid: str,
