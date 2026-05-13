@@ -18,5 +18,7 @@ class Settings(BaseSettings):
     MINIO_USE_SSL: bool = False
     STORAGE_BACKEND: str = "minio"
 
+    GOOGLE_APPLICATION_CREDENTIALS: str = ""
+
 
 settings = Settings()

@@ -25,6 +25,7 @@ Lib/
 .env
 .env.*
 !.env.example
+google-credentials.json
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 .pytest_cache/

@@ -13,11 +13,6 @@ interface Props {
 }
 
 const STATUS_STYLES: Record<DocumentStatus, { container: string; text: string; label: string }> = {
-  [DocumentStatus.UPLOADING]: {
-    container: 'border border-yellow-200 bg-yellow-50 px-2.5 py-1 rounded-lg',
-    text: 'text-xs font-semibold text-yellow-700',
-    label: 'Aguardando Processamento',
-  },
   [DocumentStatus.PROCESSING]: {
     container: 'border border-blue-200 bg-blue-50 px-2.5 py-1 rounded-lg',
     text: 'text-xs font-semibold text-blue-700',
@@ -27,6 +22,11 @@ const STATUS_STYLES: Record<DocumentStatus, { container: string; text: string; l
     container: 'border border-green-200 bg-green-50 px-2.5 py-1 rounded-lg',
     text: 'text-xs font-semibold text-green-700',
     label: 'Indexado',
+  },
+  [DocumentStatus.FAILED]: {
+    container: 'border border-red-200 bg-red-50 px-2.5 py-1 rounded-lg',
+    text: 'text-xs font-semibold text-red-700',
+    label: 'Falha no processamento',
   },
 };
 
@@ -52,6 +52,15 @@ export default function DocumentList({ projectUid, selectedDocumentId, onSelectD
     void loadDocuments();
   }, [loadDocuments]);
 
+  useEffect(() => {
+    const hasPending = documents.some((d) => d.status === DocumentStatus.PROCESSING && !d.uid.startsWith('temp-'));
+    if (!hasPending) return;
+    const id = setInterval(() => {
+      void loadDocuments();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [documents, loadDocuments]);
+
   function handleUpload() {
     DocumentPicker.getDocumentAsync({
       type: 'application/pdf',
@@ -64,7 +73,7 @@ export default function DocumentList({ projectUid, selectedDocumentId, onSelectD
         uid: `temp-${Date.now()}`,
         title: asset.name,
         file_path: '',
-        status: DocumentStatus.UPLOADING,
+        status: DocumentStatus.PROCESSING,
         created_at: new Date().toISOString(),
       };
 
@@ -110,10 +119,19 @@ export default function DocumentList({ projectUid, selectedDocumentId, onSelectD
     }
   }
 
+  async function handleReprocess(doc: Document) {
+    try {
+      await documentService.reprocessDocument(projectUid, doc.uid);
+      await loadDocuments();
+    } catch {
+      Alert.alert('Erro', 'Não foi possível reprocessar o documento.');
+    }
+  }
+
   function renderItem({ item }: { item: Document }) {
     const isTemp = item.uid.startsWith('temp-');
     const isSelected = item.uid === selectedDocumentId;
-    const statusStyle = STATUS_STYLES[item.status] ?? STATUS_STYLES[DocumentStatus.UPLOADING];
+    const statusStyle = STATUS_STYLES[item.status] ?? STATUS_STYLES[DocumentStatus.PROCESSING];
 
     return (
       <TouchableOpacity
@@ -149,6 +167,18 @@ export default function DocumentList({ projectUid, selectedDocumentId, onSelectD
             </TouchableOpacity>
           )}
         </View>
+
+        {item.status === DocumentStatus.FAILED && !isTemp && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => void handleReprocess(item)}
+            className="mt-3 self-stretch rounded-lg border border-red-200 bg-red-50 px-3 py-2"
+          >
+            <Text className="text-center text-xs font-semibold text-red-700">
+              Tentar novamente
+            </Text>
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
     );
   }

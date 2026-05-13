@@ -85,24 +85,45 @@ var initialized = false;
 
 // ── Bootstrap ────────────────────────────────────────────────
 window.receiveMessage = function(msg) {
-  if (msg.type !== 'init') return;
-  if (initialized) return;
-  initialized = true;
-  isPdf = !!msg.streamUrl;
-  initCanvas();
-  if (isPdf) {
-    showPdfUI();
-    if (msg.canvasData) {
-      try {
-        var parsed = typeof msg.canvasData === 'string' ? JSON.parse(msg.canvasData) : msg.canvasData;
-        // formato legado: objeto fabric direto (tem 'objects') → mapeia para página 1
-        pageData = parsed && parsed.objects ? { 1: msg.canvasData } : (parsed || {});
-      } catch(e) { pageData = {}; }
+  if (msg.type === 'init') {
+    if (initialized) return;
+    initialized = true;
+    isPdf = !!msg.streamUrl;
+    initCanvas();
+    if (isPdf) {
+      showPdfUI();
+      if (msg.canvasData) {
+        try {
+          var parsed = typeof msg.canvasData === 'string' ? JSON.parse(msg.canvasData) : msg.canvasData;
+          // formato legado: objeto fabric direto (tem 'objects') → mapeia para página 1
+          pageData = parsed && parsed.objects ? { 1: msg.canvasData } : (parsed || {});
+        } catch(e) { pageData = {}; }
+      }
+      loadPdf(msg.streamUrl, msg.authToken);
+    } else {
+      setMode('navigate');
+      if (msg.canvasData) loadJson(msg.canvasData);
     }
-    loadPdf(msg.streamUrl, msg.authToken);
-  } else {
-    setMode('navigate');
-    if (msg.canvasData) loadJson(msg.canvasData);
+    return;
+  }
+
+  if (msg.type === 'requestPng') {
+    try {
+      // Exporta o canvas atual (PDF + overlays ou nota livre) como PNG
+      var dataUrl = fc.toDataURL({ format: 'png', multiplier: 1 });
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'pngResponse',
+        requestId: msg.requestId,
+        dataUrl: dataUrl,
+      }));
+    } catch (err) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'pngResponse',
+        requestId: msg.requestId,
+        error: String(err && err.message ? err.message : err),
+      }));
+    }
+    return;
   }
 };
 

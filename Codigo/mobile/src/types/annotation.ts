@@ -3,6 +3,8 @@ export enum AnnotationType {
   TEXT = 'TEXT',
 }
 
+export type AnnotationStatus = 'PROCESSING' | 'INDEXED' | 'FAILED';
+
 export interface Annotation {
   uid: string;
   title: string;
@@ -10,7 +12,9 @@ export interface Annotation {
   content: string;
   position: string;
   canvas_path: string;
+  canvas_image_path: string;
   document_uid?: string;
-  status: 'UPLOADING' | 'PROCESSING' | 'INDEXED';
+  status: AnnotationStatus;
+  extracted_text: string;
   created_at: string;
 }

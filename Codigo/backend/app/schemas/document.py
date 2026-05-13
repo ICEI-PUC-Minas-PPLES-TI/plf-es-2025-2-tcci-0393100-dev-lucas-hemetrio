@@ -13,3 +13,4 @@ class DocumentResponse(BaseModel):
     file_path: str
     status: DocumentStatus
     created_at: datetime
+    page_count: int = 0

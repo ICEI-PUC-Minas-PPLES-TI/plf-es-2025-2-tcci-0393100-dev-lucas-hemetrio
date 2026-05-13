@@ -33,6 +33,10 @@ export const documentService = {
     await apiClient.delete(`/projects/${projectUid}/documents/${docUid}`);
   },
 
+  async reprocessDocument(projectUid: string, docUid: string): Promise<void> {
+    await apiClient.post(`/projects/${projectUid}/documents/${docUid}/reprocess`);
+  },
+
   async getDocumentUrl(projectUid: string, docUid: string): Promise<string> {
     const { data } = await apiClient.get<{ url: string }>(
       `/projects/${projectUid}/documents/${docUid}/url`,

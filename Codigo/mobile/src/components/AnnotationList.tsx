@@ -32,6 +32,15 @@ export default function AnnotationList({ projectUid, selectedAnnotationId, onSel
     void loadAnnotations();
   }, [loadAnnotations]);
 
+  useEffect(() => {
+    const hasPending = annotations.some((a) => a.status === 'PROCESSING');
+    if (!hasPending) return;
+    const id = setInterval(() => {
+      void loadAnnotations();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [annotations, loadAnnotations]);
+
   function confirmDelete(ann: Annotation) {
     Alert.alert('Excluir anotação', `Deseja excluir "${ann.title}"?`, [
       { text: 'Cancelar', style: 'cancel' },
@@ -50,6 +59,15 @@ export default function AnnotationList({ projectUid, selectedAnnotationId, onSel
     ]);
   }
 
+  async function handleReprocess(ann: Annotation) {
+    try {
+      await annotationService.reprocessAnnotation(projectUid, ann.uid);
+      await loadAnnotations();
+    } catch {
+      Alert.alert('Erro', 'Não foi possível reprocessar a anotação.');
+    }
+  }
+
   function renderItem({ item }: { item: Annotation }) {
     const isSelected = item.uid === selectedAnnotationId;
 
@@ -57,32 +75,58 @@ export default function AnnotationList({ projectUid, selectedAnnotationId, onSel
       <TouchableOpacity
         activeOpacity={0.85}
         onPress={() => onSelectAnnotation(item)}
-        className={`mb-3 flex-row items-center rounded-2xl border p-4 ${
+        className={`mb-3 rounded-2xl border p-4 ${
           isSelected ? 'border-primary bg-blue-50' : 'border-gray-100 bg-white'
         }`}
       >
-        <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
-          <Text style={{ fontSize: 16 }}>{item.type === AnnotationType.TEXT ? 'T' : '✏️'}</Text>
+        <View className="flex-row items-center">
+          <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
+            <Text style={{ fontSize: 16 }}>{item.type === AnnotationType.TEXT ? 'T' : '✏️'}</Text>
+          </View>
+
+          <View className="flex-1">
+            <Text className="text-sm font-semibold text-gray-900" numberOfLines={1}>
+              {item.title}
+            </Text>
+            <Text className="mt-0.5 text-xs text-gray-400">
+              {item.document_uid ? 'Overlay de PDF' : 'Whiteboard livre'}
+              {' · '}
+              {new Date(item.created_at).toLocaleDateString('pt-BR')}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => confirmDelete(item)}
+            className="ml-2 p-1"
+          >
+            <Text style={{ color: '#EF4444', fontSize: 16 }}>✕</Text>
+          </TouchableOpacity>
         </View>
 
-        <View className="flex-1">
-          <Text className="text-sm font-semibold text-gray-900" numberOfLines={1}>
-            {item.title}
-          </Text>
-          <Text className="mt-0.5 text-xs text-gray-400">
-            {item.document_uid ? 'Overlay de PDF' : 'Whiteboard livre'}
-            {' · '}
-            {new Date(item.created_at).toLocaleDateString('pt-BR')}
-          </Text>
-        </View>
+        {item.status === 'PROCESSING' && (
+          <View className="mt-2 flex-row items-center">
+            <ActivityIndicator size="small" color="#3B82F6" />
+            <Text className="ml-2 text-xs text-gray-500">Processando...</Text>
+          </View>
+        )}
 
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => confirmDelete(item)}
-          className="ml-2 p-1"
-        >
-          <Text style={{ color: '#EF4444', fontSize: 16 }}>✕</Text>
-        </TouchableOpacity>
+        {item.status === 'FAILED' && (
+          <View className="mt-2">
+            <View className="self-start rounded-lg border border-red-200 bg-red-50 px-2.5 py-1">
+              <Text className="text-xs font-semibold text-red-700">Falha no processamento</Text>
+            </View>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => void handleReprocess(item)}
+              className="mt-2 self-stretch rounded-lg border border-red-200 bg-red-50 px-3 py-2"
+            >
+              <Text className="text-center text-xs font-semibold text-red-700">
+                Tentar novamente
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </TouchableOpacity>
     );
   }

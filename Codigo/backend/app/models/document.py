@@ -10,15 +10,16 @@ def _utc_now():
 
 
 class DocumentStatus(str, Enum):
-    UPLOADING = "UPLOADING"
     PROCESSING = "PROCESSING"
     INDEXED = "INDEXED"
+    FAILED = "FAILED"
 
 
 class Document(StructuredNode):
     uid = StringProperty(unique_index=True, default=lambda: str(uuid.uuid4()))
     title = StringProperty(required=True)
     file_path = StringProperty(required=True)
-    status = StringProperty(default=DocumentStatus.UPLOADING.value)
+    status = StringProperty(default=DocumentStatus.PROCESSING.value)
     created_at = DateTimeProperty(default=_utc_now)
     annotations = RelationshipTo('app.models.annotation.Annotation', 'CONTAINS')
+    pages = RelationshipTo('app.models.document_page.DocumentPage', 'HAS_PAGE')

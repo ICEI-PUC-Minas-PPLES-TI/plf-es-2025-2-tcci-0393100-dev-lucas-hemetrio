@@ -1,7 +1,7 @@
 export enum DocumentStatus {
-  UPLOADING = 'UPLOADING',
   PROCESSING = 'PROCESSING',
   INDEXED = 'INDEXED',
+  FAILED = 'FAILED',
 }
 
 export interface Document {
@@ -10,4 +10,5 @@ export interface Document {
   file_path: string;
   status: DocumentStatus;
   created_at: string;
+  page_count?: number;
 }

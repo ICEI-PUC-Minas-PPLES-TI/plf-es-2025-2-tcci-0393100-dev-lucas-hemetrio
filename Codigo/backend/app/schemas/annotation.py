@@ -12,6 +12,8 @@ class AnnotationResponse(BaseModel):
     content: str
     position: str
     canvas_path: str
+    canvas_image_path: str
     document_uid: str | None
     status: str
+    extracted_text: str
     created_at: datetime

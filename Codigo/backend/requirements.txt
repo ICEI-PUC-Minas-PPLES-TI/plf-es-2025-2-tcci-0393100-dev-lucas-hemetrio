@@ -7,3 +7,9 @@ pydantic[email]
 python-multipart
 pydantic-settings
 minio
+google-cloud-vision
+pdfplumber
+pillow
+pytest
+pytest-mock
+httpx

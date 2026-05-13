@@ -1,12 +1,13 @@
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Response, UploadFile, status
 
 from app.api.deps import get_current_user
 from app.models.document import Document, DocumentStatus
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.document import DocumentResponse
+from app.services.ocr_pipeline import process_document
 from app.storage import get_storage
 from app.storage.base import StorageBackend
 
@@ -26,9 +27,21 @@ def _get_owned_project(current_user: User, project_uid: str) -> Project:
     return project
 
 
+def _build_response(document: Document) -> dict:
+    return {
+        "uid": document.uid,
+        "title": document.title,
+        "file_path": document.file_path,
+        "status": document.status,
+        "created_at": document.created_at,
+        "page_count": len(document.pages.all()),
+    }
+
+
 @router.post("", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 def upload_document(
     project_uid: str,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     storage: StorageBackend = Depends(get_storage),
@@ -51,11 +64,14 @@ def upload_document(
         uid=doc_uid,
         title=file.filename or "document.pdf",
         file_path=object_name,
-        status=DocumentStatus.UPLOADING.value,
+        status=DocumentStatus.PROCESSING.value,
     ).save()
 
     project.documents.connect(document)
-    return document
+
+    background_tasks.add_task(process_document, doc_uid)
+
+    return _build_response(document)
 
 
 @router.get("", response_model=list[DocumentResponse])
@@ -64,7 +80,8 @@ def list_documents(
     current_user: User = Depends(get_current_user),
 ):
     project = _get_owned_project(current_user, project_uid)
-    return sorted(project.documents.all(), key=lambda d: d.created_at, reverse=True)
+    sorted_docs = sorted(project.documents.all(), key=lambda d: d.created_at, reverse=True)
+    return [_build_response(d) for d in sorted_docs]
 
 
 @router.get("/{doc_uid}/url")
@@ -116,6 +133,31 @@ def stream_document(
     )
 
 
+@router.post("/{doc_uid}/reprocess", status_code=status.HTTP_202_ACCEPTED)
+def reprocess_document(
+    project_uid: str,
+    doc_uid: str,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+):
+    project = _get_owned_project(current_user, project_uid)
+    document = next(
+        (d for d in project.documents.all() if d.uid == doc_uid),
+        None,
+    )
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    document.status = DocumentStatus.PROCESSING.value
+    document.save()
+
+    background_tasks.add_task(process_document, doc_uid)
+    return {"status": "queued"}
+
+
 @router.delete("/{doc_uid}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document(
     project_uid: str,
@@ -133,6 +175,10 @@ def delete_document(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Document not found",
         )
+
+    for page in document.pages.all():
+        document.pages.disconnect(page)
+        page.delete()
 
     storage.delete_file(document.file_path)
     project.documents.disconnect(document)

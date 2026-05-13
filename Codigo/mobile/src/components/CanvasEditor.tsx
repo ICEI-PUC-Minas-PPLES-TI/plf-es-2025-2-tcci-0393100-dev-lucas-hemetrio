@@ -37,10 +37,26 @@ export default function CanvasEditor({
   const [isLoading, setIsLoading] = useState(true);
   // uid resolvido: vem da prop ou é descoberto ao buscar anotação vinculada ao documento
   const [resolvedAnnotationUid, setResolvedAnnotationUid] = useState<string | undefined>(annotationUid);
+  // promessas pendentes de export de PNG do WebView (correlacionadas por requestId)
+  const pendingPngRequests = useRef<Record<string, { resolve: (s: string) => void; reject: (e: Error) => void }>>({});
 
   function inject(msg: object) {
     const js = `window.receiveMessage(${JSON.stringify(msg)}); true;`;
     webViewRef.current?.injectJavaScript(js);
+  }
+
+  function requestPng(): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const requestId = String(Date.now()) + '-' + Math.random().toString(36).slice(2);
+      pendingPngRequests.current[requestId] = { resolve, reject };
+      inject({ type: 'requestPng', requestId });
+      setTimeout(() => {
+        if (pendingPngRequests.current[requestId]) {
+          delete pendingPngRequests.current[requestId];
+          reject(new Error('PNG export timeout'));
+        }
+      }, 5000);
+    });
   }
 
   async function onReady() {
@@ -92,8 +108,15 @@ export default function CanvasEditor({
 
     setIsSaving(true);
     try {
+      const canvasImageBase64 = await requestPng().catch(() => '');
+
       if (resolvedAnnotationUid) {
-        await annotationService.updateAnnotationCanvas(projectUid, resolvedAnnotationUid, fabricJson);
+        await annotationService.updateAnnotationCanvas(
+          projectUid,
+          resolvedAnnotationUid,
+          fabricJson,
+          canvasImageBase64,
+        );
         onSaved({
           uid: resolvedAnnotationUid,
           title: effectiveTitle,
@@ -101,8 +124,10 @@ export default function CanvasEditor({
           content: '',
           position: '',
           canvas_path: '',
+          canvas_image_path: '',
           document_uid: documentUid,
-          status: 'INDEXED',
+          status: 'PROCESSING',
+          extracted_text: '',
           created_at: new Date().toISOString(),
         });
       } else {
@@ -112,6 +137,7 @@ export default function CanvasEditor({
           position: '',
           documentUid,
           canvasData: fabricJson,
+          canvasImageBase64,
         });
         setResolvedAnnotationUid(annotation.uid);
         onSaved(annotation);
@@ -125,7 +151,24 @@ export default function CanvasEditor({
 
   function onMessage(event: WebViewMessageEvent) {
     try {
-      const msg = JSON.parse(event.nativeEvent.data) as { type: string; fabricJson?: string };
+      const msg = JSON.parse(event.nativeEvent.data) as {
+        type: string;
+        fabricJson?: string;
+        requestId?: string;
+        dataUrl?: string;
+        error?: string;
+      };
+
+      if (msg.type === 'pngResponse' && msg.requestId) {
+        const pending = pendingPngRequests.current[msg.requestId];
+        if (pending) {
+          delete pendingPngRequests.current[msg.requestId];
+          if (msg.error) pending.reject(new Error(msg.error));
+          else pending.resolve(msg.dataUrl ?? '');
+        }
+        return;
+      }
+
       if (msg.type === 'ready') {
         void onReady();
       } else if (msg.type === 'save' && msg.fabricJson) {
