@@ -21,6 +21,7 @@ interface Props {
   documentUid?: string;
   annotationUid?: string;
   initialTitle?: string;
+  initialPage?: number;
   onSaved: (annotation: Annotation) => void;
 }
 
@@ -29,6 +30,7 @@ export default function CanvasEditor({
   documentUid,
   annotationUid,
   initialTitle,
+  initialPage,
   onSaved,
 }: Props) {
   const webViewRef = useRef<WebView>(null);
@@ -94,6 +96,9 @@ export default function CanvasEditor({
     }
 
     inject({ type: 'init', streamUrl, authToken, canvasData });
+    if (initialPage && initialPage > 1) {
+      inject({ type: 'set-initial-page', page: initialPage });
+    }
     setIsLoading(false);
   }
 

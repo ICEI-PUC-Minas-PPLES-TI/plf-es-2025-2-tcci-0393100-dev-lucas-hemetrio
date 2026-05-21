@@ -6,9 +6,10 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import annotations, auth, documents, projects
+from app.api.routes import annotations, auth, documents, projects, search
 from app.core.config import settings
 from app.db.database import connect_to_db
+from app.services.search_index import ensure_search_index
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,6 +37,7 @@ if settings.GOOGLE_APPLICATION_CREDENTIALS:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     connect_to_db()
+    ensure_search_index()
     yield
 
 
@@ -61,3 +63,4 @@ app.include_router(
     prefix="/api/projects/{project_uid}/annotations",
     tags=["annotations"],
 )
+app.include_router(search.router, prefix="/api/search", tags=["search"])

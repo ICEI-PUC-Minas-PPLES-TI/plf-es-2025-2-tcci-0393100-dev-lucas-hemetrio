@@ -72,6 +72,7 @@ var fc = null;
 var pdfDoc = null;
 var curPage = 1;
 var totPages = 1;
+var pendingInitialPage = 1;
 var currentBgImage = null;
 var pageData = {}; // { pageNum: fabricJsonString } — anotações por página do PDF
 var color = '#111827';
@@ -103,6 +104,14 @@ window.receiveMessage = function(msg) {
     } else {
       setMode('navigate');
       if (msg.canvasData) loadJson(msg.canvasData);
+    }
+    return;
+  }
+
+  if (msg.type === 'set-initial-page') {
+    pendingInitialPage = Math.max(1, parseInt(msg.page, 10) || 1);
+    if (pdfDoc) {
+      renderPage(Math.min(pendingInitialPage, totPages));
     }
     return;
   }
@@ -171,7 +180,7 @@ function loadPdf(streamUrl, authToken) {
     .then(function(doc) {
       pdfDoc = doc;
       totPages = doc.numPages;
-      renderPage(1);
+      renderPage(Math.min(pendingInitialPage, totPages));
     })
     .catch(function(err) { toRN({ type: 'error', message: 'PDF load failed: ' + err.message }); });
 }

@@ -18,7 +18,10 @@ import type { Project } from '@/types/project';
 import DocumentList from '@/components/DocumentList';
 import AnnotationList from '@/components/AnnotationList';
 import CanvasEditor from '@/components/CanvasEditor';
+import SearchModal from '@/components/SearchModal';
+import { annotationService } from '@/services/annotationService';
 import type { Annotation } from '@/types/annotation';
+import type { SearchTarget } from '@/types/search';
 import { Menu, PanelRightClose } from 'lucide-react-native/icons';
 
 class PanelErrorBoundary extends Component<
@@ -72,6 +75,8 @@ export default function HomeScreen() {
   const [projectName, setProjectName] = useState('');
   const [projectBeingEdited, setProjectBeingEdited] = useState<Project | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [selectedInitialPage, setSelectedInitialPage] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     setIsSidebarOpen(isTablet);
@@ -95,7 +100,34 @@ export default function HomeScreen() {
     setSelectedDocumentId(null);
     setSelectedAnnotationId(null);
     setSelectedAnnotation(null);
+    setSelectedInitialPage(undefined);
   }, [selectedProjectId]);
+
+  async function handleSearchTarget(target: SearchTarget) {
+    setSearchVisible(false);
+    setSelectedProjectId(target.projectUid);
+
+    if (target.kind === 'document') {
+      setActiveTab('documents');
+      setSelectedAnnotationId(null);
+      setSelectedAnnotation(null);
+      setSelectedDocumentId(target.documentUid);
+      setSelectedInitialPage(target.initialPage);
+      return;
+    }
+
+    setActiveTab('annotations');
+    setSelectedDocumentId(null);
+    setSelectedInitialPage(undefined);
+    setSelectedAnnotationId(target.annotationUid);
+    try {
+      const all = await annotationService.listAnnotations(target.projectUid);
+      const found = all.find((a) => a.uid === target.annotationUid) ?? null;
+      setSelectedAnnotation(found);
+    } catch {
+      setSelectedAnnotation(null);
+    }
+  }
 
   useEffect(() => {
     setSelectedDocumentId(null);
@@ -323,6 +355,13 @@ export default function HomeScreen() {
                     <TouchableOpacity
                       className="rounded-2xl border border-gray-200 bg-white px-3 py-2"
                       activeOpacity={0.85}
+                      onPress={() => setSearchVisible(true)}
+                    >
+                      <Text className="text-xs font-semibold text-gray-800">🔍 Buscar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      className="rounded-2xl border border-gray-200 bg-white px-3 py-2"
+                      activeOpacity={0.85}
                       onPress={() => openRenameProjectModal(selectedProject)}
                     >
                       <Text className="text-xs font-semibold text-gray-800">Renomear</Text>
@@ -368,15 +407,19 @@ export default function HomeScreen() {
                         <DocumentList
                           projectUid={selectedProject.uid}
                           selectedDocumentId={selectedDocumentId}
-                          onSelectDocument={setSelectedDocumentId}
+                          onSelectDocument={(id) => {
+                            setSelectedDocumentId(id);
+                            setSelectedInitialPage(undefined);
+                          }}
                         />
                       </View>
                       <View className="flex-1">
                         {selectedDocumentId ? (
                           <CanvasEditor
-                            key={selectedDocumentId}
+                            key={`${selectedDocumentId}:${selectedInitialPage ?? 1}`}
                             projectUid={selectedProject.uid}
                             documentUid={selectedDocumentId}
+                            initialPage={selectedInitialPage}
                             onSaved={(annotation) => {
                               setSelectedAnnotation(annotation);
                               setSelectedAnnotationId(annotation.uid);
@@ -514,6 +557,12 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+
+      <SearchModal
+        visible={searchVisible}
+        onClose={() => setSearchVisible(false)}
+        onSelectResult={handleSearchTarget}
+      />
     </SafeAreaView>
   );
 }
