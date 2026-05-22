@@ -8,11 +8,45 @@ import logging
 from app.models.annotation import Annotation, AnnotationStatus
 from app.models.document import Document, DocumentStatus
 from app.models.document_page import DocumentPage
+from app.models.project import Project
+from app.services.knowledge_pipeline import rebuild_project_knowledge
 from app.services.pdf_text_extractor import extract_pages
 from app.services.vision_client import VisionClient
 from app.storage import get_storage
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_project_for_document(document) -> Project | None:
+    from neomodel import db
+    result, _ = db.cypher_query(
+        "MATCH (p:Project)-[:CONTAINS]->(d:Document {uid: $uid}) RETURN p.uid LIMIT 1",
+        {"uid": document.uid},
+    )
+    if not result:
+        return None
+    return Project.nodes.get_or_none(uid=result[0][0])
+
+
+def _resolve_project_for_annotation(annotation) -> Project | None:
+    from neomodel import db
+    result, _ = db.cypher_query(
+        "MATCH (p:Project)-[:CONTAINS]->(a:Annotation {uid: $uid}) RETURN p.uid LIMIT 1",
+        {"uid": annotation.uid},
+    )
+    if not result:
+        return None
+    return Project.nodes.get_or_none(uid=result[0][0])
+
+
+def _trigger_knowledge_rebuild(project: Project | None) -> None:
+    """Roda síncrono no fim da BG task. Falha aqui não afeta o status do item."""
+    if project is None:
+        return
+    try:
+        rebuild_project_knowledge(project.uid)
+    except Exception:  # noqa: BLE001
+        logger.exception("knowledge rebuild failed for project=%s", project.uid)
 
 
 def _load_document(doc_uid: str) -> Document | None:
@@ -65,6 +99,9 @@ def process_document(doc_uid: str) -> None:
             "process_document: doc_uid=%s status=%s pages=%d",
             doc_uid, document.status, len(pages),
         )
+        if document.status == DocumentStatus.INDEXED.value:
+            project = _resolve_project_for_document(document)
+            _trigger_knowledge_rebuild(project)
     except Exception as exc:  # noqa: BLE001
         logger.exception("process_document: doc_uid=%s failed: %s", doc_uid, exc)
         document.status = DocumentStatus.FAILED.value
@@ -99,6 +136,8 @@ def process_annotation(ann_uid: str) -> None:
             "process_annotation: ann_uid=%s status=INDEXED text_len=%d",
             ann_uid, len(text),
         )
+        project = _resolve_project_for_annotation(annotation)
+        _trigger_knowledge_rebuild(project)
     except Exception as exc:  # noqa: BLE001
         logger.exception("process_annotation: ann_uid=%s failed: %s", ann_uid, exc)
         annotation.status = AnnotationStatus.FAILED.value

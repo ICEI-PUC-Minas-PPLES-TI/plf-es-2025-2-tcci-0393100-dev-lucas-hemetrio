@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import annotations, auth, documents, projects, search
+from app.api.routes import annotations, auth, documents, knowledge, projects, search
 from app.core.config import settings
 from app.db.database import connect_to_db
 from app.services.search_index import ensure_search_index
@@ -64,3 +64,4 @@ app.include_router(
     tags=["annotations"],
 )
 app.include_router(search.router, prefix="/api/search", tags=["search"])
+app.include_router(knowledge.router, prefix="/api/projects", tags=["knowledge"])

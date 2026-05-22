@@ -10,6 +10,7 @@ minio
 google-cloud-vision
 pdfplumber
 pillow
+spacy>=3.7,<4
 pytest
 pytest-mock
 httpx

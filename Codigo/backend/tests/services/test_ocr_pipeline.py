@@ -35,7 +35,9 @@ def test_process_document_indexes_pages_on_success(mock_storage, mock_document):
          patch("app.services.ocr_pipeline.VisionClient"), \
          patch("app.services.ocr_pipeline.extract_pages", return_value=pages_extracted) as mock_extract, \
          patch("app.services.ocr_pipeline._save_pages") as mock_save_pages, \
-         patch("app.services.ocr_pipeline._clear_existing_pages"):
+         patch("app.services.ocr_pipeline._clear_existing_pages"), \
+         patch("app.services.ocr_pipeline._resolve_project_for_document", return_value=None), \
+         patch("app.services.ocr_pipeline._trigger_knowledge_rebuild"):
         process_document("doc-123")
 
     mock_extract.assert_called_once()
@@ -84,7 +86,9 @@ def test_process_document_indexes_when_at_least_one_page_has_text(mock_storage, 
          patch("app.services.ocr_pipeline.VisionClient"), \
          patch("app.services.ocr_pipeline.extract_pages", return_value=pages_extracted), \
          patch("app.services.ocr_pipeline._save_pages"), \
-         patch("app.services.ocr_pipeline._clear_existing_pages"):
+         patch("app.services.ocr_pipeline._clear_existing_pages"), \
+         patch("app.services.ocr_pipeline._resolve_project_for_document", return_value=None), \
+         patch("app.services.ocr_pipeline._trigger_knowledge_rebuild"):
         process_document("doc-123")
 
     assert mock_document.status == "INDEXED"
@@ -107,7 +111,9 @@ def test_process_annotation_indexes_with_text_when_vision_succeeds(mock_annotati
 
     with patch("app.services.ocr_pipeline._load_annotation", return_value=mock_annotation), \
          patch("app.services.ocr_pipeline.get_storage", return_value=mock_storage), \
-         patch("app.services.ocr_pipeline.VisionClient", return_value=fake_vision):
+         patch("app.services.ocr_pipeline.VisionClient", return_value=fake_vision), \
+         patch("app.services.ocr_pipeline._resolve_project_for_annotation", return_value=None), \
+         patch("app.services.ocr_pipeline._trigger_knowledge_rebuild"):
         process_annotation("ann-123")
 
     assert mock_annotation.extracted_text == "handwritten text"
@@ -123,7 +129,9 @@ def test_process_annotation_indexes_with_empty_text_when_canvas_is_blank(mock_an
 
     with patch("app.services.ocr_pipeline._load_annotation", return_value=mock_annotation), \
          patch("app.services.ocr_pipeline.get_storage", return_value=mock_storage), \
-         patch("app.services.ocr_pipeline.VisionClient", return_value=fake_vision):
+         patch("app.services.ocr_pipeline.VisionClient", return_value=fake_vision), \
+         patch("app.services.ocr_pipeline._resolve_project_for_annotation", return_value=None), \
+         patch("app.services.ocr_pipeline._trigger_knowledge_rebuild"):
         process_annotation("ann-123")
 
     assert mock_annotation.extracted_text == ""
