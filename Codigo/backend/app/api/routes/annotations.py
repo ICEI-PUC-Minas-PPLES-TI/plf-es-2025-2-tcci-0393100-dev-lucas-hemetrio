@@ -4,7 +4,7 @@ import uuid
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Response, status
 
 from app.api.deps import get_current_user
-from app.models.annotation import Annotation, AnnotationStatus, AnnotationType
+from app.models.annotation import Annotation, AnnotationStatus
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.annotation import AnnotationResponse
@@ -49,7 +49,6 @@ def create_annotation(
     project_uid: str,
     background_tasks: BackgroundTasks,
     title: str = Form(...),
-    type: str = Form(default=AnnotationType.HANDWRITING.value),
     position: str = Form(default=""),
     document_uid: str | None = Form(default=None),
     canvas_data: str = Form(...),
@@ -71,7 +70,6 @@ def create_annotation(
     annotation = Annotation(
         uid=ann_uid,
         title=title,
-        type=type,
         canvas_path=canvas_object,
         canvas_image_path=image_object,
         position=position,

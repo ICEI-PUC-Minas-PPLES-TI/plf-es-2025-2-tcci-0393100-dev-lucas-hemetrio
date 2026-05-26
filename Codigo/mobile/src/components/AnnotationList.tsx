@@ -3,7 +3,6 @@ import { ActivityIndicator, Alert, FlatList, Text, TouchableOpacity, View } from
 
 import { annotationService } from '@/services/annotationService';
 import type { Annotation } from '@/types/annotation';
-import { AnnotationType } from '@/types/annotation';
 
 interface Props {
   projectUid: string;
@@ -81,7 +80,7 @@ export default function AnnotationList({ projectUid, selectedAnnotationId, onSel
       >
         <View className="flex-row items-center">
           <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
-            <Text style={{ fontSize: 16 }}>{item.type === AnnotationType.TEXT ? 'T' : '✏️'}</Text>
+            <Text style={{ fontSize: 16 }}>✏️</Text>
           </View>
 
           <View className="flex-1">

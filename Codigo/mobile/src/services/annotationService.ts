@@ -1,7 +1,5 @@
 import apiClient from '@/api/client';
 import type { Annotation } from '@/types/annotation';
-import { AnnotationType } from '@/types/annotation';
-export { AnnotationType };
 
 export const annotationService = {
   async listAnnotations(projectUid: string): Promise<Annotation[]> {
@@ -15,7 +13,6 @@ export const annotationService = {
     projectUid: string,
     payload: {
       title: string;
-      type: AnnotationType;
       position: string;
       documentUid?: string;
       canvasData: string;
@@ -24,7 +21,6 @@ export const annotationService = {
   ): Promise<Annotation> {
     const form = new FormData();
     form.append('title', payload.title);
-    form.append('type', payload.type);
     form.append('position', payload.position);
     if (payload.documentUid) {
       form.append('document_uid', payload.documentUid);

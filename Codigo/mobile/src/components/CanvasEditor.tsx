@@ -13,7 +13,6 @@ import { annotationService } from '@/services/annotationService';
 import { documentService } from '@/services/documentService';
 import { getToken } from '@/storage/tokenStorage';
 import type { Annotation } from '@/types/annotation';
-import { AnnotationType } from '@/types/annotation';
 import { canvasEditorHtml } from '@/assets/canvasEditorHtml';
 
 interface Props {
@@ -125,7 +124,6 @@ export default function CanvasEditor({
         onSaved({
           uid: resolvedAnnotationUid,
           title: effectiveTitle,
-          type: AnnotationType.HANDWRITING,
           content: '',
           position: '',
           canvas_path: '',
@@ -138,7 +136,6 @@ export default function CanvasEditor({
       } else {
         const annotation = await annotationService.createAnnotation(projectUid, {
           title: effectiveTitle,
-          type: AnnotationType.HANDWRITING,
           position: '',
           documentUid,
           canvasData: fabricJson,

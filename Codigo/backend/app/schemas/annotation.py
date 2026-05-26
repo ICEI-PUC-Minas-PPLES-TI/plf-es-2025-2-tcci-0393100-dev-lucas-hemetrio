@@ -8,7 +8,6 @@ class AnnotationResponse(BaseModel):
 
     uid: str
     title: str
-    type: str
     content: str
     position: str
     canvas_path: str

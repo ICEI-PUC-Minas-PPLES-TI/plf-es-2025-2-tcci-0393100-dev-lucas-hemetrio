@@ -30,6 +30,12 @@
     },
     "plugins": [
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "33f65536-a839-4c1d-996e-376b50fbeca4"
+      }
+    },
+    "owner": "lucasht"
   }
 }

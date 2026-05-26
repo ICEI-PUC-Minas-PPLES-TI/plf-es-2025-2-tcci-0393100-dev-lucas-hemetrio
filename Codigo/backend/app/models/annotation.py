@@ -9,11 +9,6 @@ def _utc_now():
     return datetime.now(timezone.utc)
 
 
-class AnnotationType(str, Enum):
-    HANDWRITING = "HANDWRITING"
-    TEXT = "TEXT"
-
-
 class AnnotationStatus(str, Enum):
     PROCESSING = "PROCESSING"
     INDEXED = "INDEXED"
@@ -23,7 +18,6 @@ class AnnotationStatus(str, Enum):
 class Annotation(StructuredNode):
     uid = StringProperty(unique_index=True, default=lambda: str(uuid.uuid4()))
     title = StringProperty(required=True)
-    type = StringProperty(default=AnnotationType.HANDWRITING.value)
     content = StringProperty(default="")
     position = StringProperty(default="")
     canvas_path = StringProperty(required=True)

@@ -9,7 +9,7 @@ Este diretório mantém os artefatos (memoriais, diagramas, documentos, modelos 
 	* **comunicacao_realizar_anotacao.jpg**
 	* **comunicacao_realizar_busca.jpg**
 	* **comunicacao_upload_doc.jpg**
-	* **diagrama_caso_de_uso.jpg**
+	* **diagrama_caso_de_uso.png**
 	* **dss_anotacao_manuscrita.jpg**
 	* **dss_busca.jpg**
 	* **dss_conexao_grafo.jpg**
@@ -18,6 +18,10 @@ Este diretório mantém os artefatos (memoriais, diagramas, documentos, modelos 
 	* **implantacao.jpg**
 	* **pacotes.jpg**
 	* **pgm.jpg**: Property graph model, usado como equivalente ao DER para descrever as relações entre entidades.
+	* **sequencia_realizar_anotacao.jpg**
+	* **sequencia_upload_doc.jpg**
+	* **sequencia_realizar_busca.jpg**
+	* **sequencia_grafo.jpg**
 
 * `/prototipos`
 	* **Cadastro.jpg**
@@ -30,3 +34,4 @@ Este diretório mantém os artefatos (memoriais, diagramas, documentos, modelos 
 * `./`
 	* **memorial.md**: Memorial descritivo da graduação do aluno Lucas Hemétrio Teixeira.
 	* **Projeto-PreBanca_Atividade_A6.pdf**: Documentação do Projeto Cognita para aprovação da pré banca.
+	* **Projeto-Final_Atividade_A8.pdf**: Documentação final do Projeto Cognita (Atividade A8).

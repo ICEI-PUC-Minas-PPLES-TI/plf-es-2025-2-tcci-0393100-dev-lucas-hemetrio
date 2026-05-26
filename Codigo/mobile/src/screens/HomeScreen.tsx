@@ -19,6 +19,7 @@ import DocumentList from '@/components/DocumentList';
 import AnnotationList from '@/components/AnnotationList';
 import CanvasEditor from '@/components/CanvasEditor';
 import SearchModal from '@/components/SearchModal';
+import KnowledgeGraphScreen from '@/screens/KnowledgeGraphScreen';
 import { annotationService } from '@/services/annotationService';
 import type { Annotation } from '@/types/annotation';
 import type { SearchTarget } from '@/types/search';
@@ -76,6 +77,7 @@ export default function HomeScreen() {
   const [projectBeingEdited, setProjectBeingEdited] = useState<Project | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchVisible, setSearchVisible] = useState(false);
+  const [graphVisible, setGraphVisible] = useState(false);
   const [selectedInitialPage, setSelectedInitialPage] = useState<number | undefined>(undefined);
 
   useEffect(() => {
@@ -355,6 +357,13 @@ export default function HomeScreen() {
                     <TouchableOpacity
                       className="rounded-2xl border border-gray-200 bg-white px-3 py-2"
                       activeOpacity={0.85}
+                      onPress={() => setGraphVisible(true)}
+                    >
+                      <Text className="text-xs font-semibold text-gray-800">🕸️ Grafo</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      className="rounded-2xl border border-gray-200 bg-white px-3 py-2"
+                      activeOpacity={0.85}
                       onPress={() => setSearchVisible(true)}
                     >
                       <Text className="text-xs font-semibold text-gray-800">🔍 Buscar</Text>
@@ -563,6 +572,31 @@ export default function HomeScreen() {
         onClose={() => setSearchVisible(false)}
         onSelectResult={handleSearchTarget}
       />
+
+      {selectedProject && (
+        <KnowledgeGraphScreen
+          visible={graphVisible}
+          projectUid={selectedProject.uid}
+          projectName={selectedProject.name}
+          onClose={() => setGraphVisible(false)}
+          onNavigateToTarget={(target) => {
+            if (target.documentUid) {
+              handleSearchTarget({
+                kind: 'document',
+                projectUid: target.projectUid,
+                documentUid: target.documentUid,
+                initialPage: target.initialPage,
+              });
+            } else if (target.annotationUid) {
+              handleSearchTarget({
+                kind: 'annotation',
+                projectUid: target.projectUid,
+                annotationUid: target.annotationUid,
+              });
+            }
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
