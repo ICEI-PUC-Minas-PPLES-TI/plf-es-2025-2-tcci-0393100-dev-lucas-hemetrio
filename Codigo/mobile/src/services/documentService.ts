@@ -23,7 +23,7 @@ export const documentService = {
       form,
       {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 60000,
+        timeout: 300000,
       },
     );
     return data;

@@ -22,6 +22,7 @@ html,body { height:100%; background:#fff; font-family:-apple-system,sans-serif; 
 .btn.save { background:#3B82F6; color:#fff; border-color:#3B82F6; }
 .btn.danger { border-color:#FCA5A5; color:#EF4444; }
 .sep { width:1px; height:20px; background:#E5E7EB; flex-shrink:0; }
+.ctrl-disabled { opacity:0.35; pointer-events:none; }
 .dot {
   width:20px; height:20px; border-radius:50%;
   border:2px solid #E5E7EB; cursor:pointer; flex-shrink:0;
@@ -29,6 +30,16 @@ html,body { height:100%; background:#fff; font-family:-apple-system,sans-serif; 
 .dot.sel { border-color:#3B82F6; box-shadow:0 0 0 2px #BFDBFE; }
 #page-info { font-size:12px; color:#6B7280; }
 #canvas-wrap { flex:1; overflow:auto; -webkit-overflow-scrolling:touch; }
+/* Textarea real para entrada de texto: o fabric.IText captura via keydown e
+   descarta dead-keys (acentos PT-BR, keyCode 229). Um <textarea> nativo deixa
+   o browser compor o caractere normalmente. Texto transparente + caret visível:
+   o preview real fica no objeto do canvas, atualizado ao vivo. */
+#text-input {
+  position:fixed; display:none; z-index:1000; box-sizing:border-box;
+  margin:0; padding:0; border:none; outline:none; resize:none; overflow:hidden;
+  background:transparent; color:transparent;
+  font-family:-apple-system, BlinkMacSystemFont, sans-serif; line-height:1;
+}
 </style>
 </head>
 <body>
@@ -64,6 +75,7 @@ html,body { height:100%; background:#fff; font-family:-apple-system,sans-serif; 
     <canvas id="c"></canvas>
   </div>
 </div>
+<textarea id="text-input" spellcheck="false" autocomplete="off" autocorrect="off"></textarea>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -83,6 +95,11 @@ var isPdf = false;
 var redoObjs = [];
 var isRedoing = false;
 var initialized = false;
+var editingText = null; // objeto fabric em edição via textarea overlay
+var textInput = null;   // <textarea> nativo reaproveitado a cada edição
+var composing = false;  // composição de acento/IME em andamento (dead-key ´ + e)
+var baseWidth = 0;      // largura do espaço-base de coordenadas; o zoom mapeia p/ a tela
+var designHeight = 0;   // altura do espaço-base (PDF: altura da página; nota livre: 3000)
 
 // ── Bootstrap ────────────────────────────────────────────────
 window.receiveMessage = function(msg) {
@@ -116,10 +133,22 @@ window.receiveMessage = function(msg) {
     return;
   }
 
+  if (msg.type === 'resize') {
+    // o container mudou de largura (sidebar abriu/fechou): reescala mantendo o
+    // conteúdo alinhado, sem cortar nada e sem remontar/recarregar o PDF.
+    if (fc) requestAnimationFrame(function() { fitToWidth(); });
+    return;
+  }
+
   if (msg.type === 'requestPng') {
     try {
-      // Exporta o canvas atual (PDF + overlays ou nota livre) como PNG
+      // Exporta no espaço-base (zoom 1) p/ o PNG não depender da largura atual do
+      // container (sidebar aberta/fechada). Restaura o zoom de exibição depois.
+      fc.setZoom(1);
+      fc.setWidth(baseWidth);
+      fc.setHeight(designHeight || fc.getHeight());
       var dataUrl = fc.toDataURL({ format: 'png', multiplier: 1 });
+      fitToWidth();
       window.ReactNativeWebView.postMessage(JSON.stringify({
         type: 'pngResponse',
         requestId: msg.requestId,
@@ -142,11 +171,11 @@ window.addEventListener('message', function(e){ try{ window.receiveMessage(JSON.
 // ── Canvas init ───────────────────────────────────────────────
 function initCanvas() {
   var wrap = document.getElementById('canvas-wrap');
-  var w = wrap.clientWidth || window.innerWidth;
-  var h = isPdf ? (wrap.clientHeight || window.innerHeight - 50) : 3000;
+  baseWidth = wrap.clientWidth || window.innerWidth;
+  designHeight = isPdf ? (wrap.clientHeight || window.innerHeight - 50) : 3000;
 
   fc = new fabric.Canvas('c', {
-    width: w, height: h,
+    width: baseWidth, height: designHeight,
     isDrawingMode: true,
     selection: false,
     backgroundColor: '#FFFFFF',
@@ -155,6 +184,23 @@ function initCanvas() {
   applyBrush();
 
   fc.on('object:added', function() { if (!isRedoing) redoObjs = []; });
+
+  if (!isPdf) fitToWidth(); // nota livre: já ajusta o zoom à largura atual no init
+}
+
+// Ajusta o zoom do fabric para o espaço-base (baseWidth) preencher a largura atual
+// do container. Como zoom é transform de viewport, escala fundo (PDF) e objetos
+// juntos — nada é cortado e o alinhamento se mantém. Chamado no init, ao renderizar
+// página e quando o container muda de tamanho (abrir/fechar a sidebar).
+function fitToWidth() {
+  if (!fc || !baseWidth) return;
+  var wrap = document.getElementById('canvas-wrap');
+  var disp = wrap.clientWidth || baseWidth;
+  var zoom = disp / baseWidth;
+  fc.setZoom(zoom);
+  fc.setWidth(baseWidth * zoom);
+  fc.setHeight((designHeight || fc.getHeight()) * zoom);
+  fc.renderAll();
 }
 
 // ── PDF ───────────────────────────────────────────────────────
@@ -169,14 +215,16 @@ function loadPdf(streamUrl, authToken) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   var headers = authToken ? { Authorization: authToken } : {};
-  fetch(streamUrl, { headers: headers })
-    .then(function(resp) {
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      return resp.arrayBuffer();
-    })
-    .then(function(buffer) {
-      return pdfjsLib.getDocument({ data: buffer }).promise;
-    })
+  // Carregamento progressivo por HTTP Range: o pdf.js busca só os trechos das
+  // páginas exibidas (e o xref) em vez de baixar o PDF inteiro num arrayBuffer.
+  pdfjsLib.getDocument({
+    url: streamUrl,
+    httpHeaders: headers,
+    withCredentials: false,
+    rangeChunkSize: 262144,
+    disableAutoFetch: true,
+    disableStream: false,
+  }).promise
     .then(function(doc) {
       pdfDoc = doc;
       totPages = doc.numPages;
@@ -202,13 +250,16 @@ function renderPage(n) {
   document.getElementById('page-info').textContent = n + '/' + totPages;
   pdfDoc.getPage(n)
     .then(function(page) {
-      var wrap = document.getElementById('canvas-wrap');
-      var scale = (wrap.clientWidth || window.innerWidth) / page.getViewport({ scale: 1 }).width;
+      // renderiza no espaço-base (largura fixa); o zoom ajusta à largura atual.
+      // Anotações são salvas/carregadas nesse mesmo espaço → sempre alinhadas.
+      var scale = baseWidth / page.getViewport({ scale: 1 }).width;
       var vp = page.getViewport({ scale: scale });
+      designHeight = vp.height;
       var off = document.createElement('canvas');
       off.width = vp.width; off.height = vp.height;
       return page.render({ canvasContext: off.getContext('2d'), viewport: vp }).promise
         .then(function() {
+          fc.setZoom(1);
           fc.setWidth(vp.width);
           fc.setHeight(vp.height);
           // limpa objetos da página anterior antes de carregar a nova
@@ -220,10 +271,10 @@ function renderPage(n) {
               if (saved) {
                 var bg = currentBgImage;
                 fc.loadFromJSON(typeof saved === 'string' ? JSON.parse(saved) : saved, function() {
-                  fc.setBackgroundImage(bg, function() { fc.renderAll(); });
+                  fc.setBackgroundImage(bg, function() { fitToWidth(); });
                 });
               } else {
-                fc.renderAll();
+                fitToWidth();
               }
             });
           });
@@ -232,10 +283,21 @@ function renderPage(n) {
     .catch(function(err) { toRN({ type: 'error', message: 'Page render failed: ' + err.message }); });
 }
 
-function prevPage() { if (curPage > 1) { saveCurrentPage(); renderPage(curPage - 1); } }
-function nextPage() { if (curPage < totPages) { saveCurrentPage(); renderPage(curPage + 1); } }
+function prevPage() { commitText(); if (curPage > 1) { saveCurrentPage(); renderPage(curPage - 1); } }
+function nextPage() { commitText(); if (curPage < totPages) { saveCurrentPage(); renderPage(curPage + 1); } }
 
 // ── Mode ──────────────────────────────────────────────────────
+function setBrushControlsDisabled(disabled) {
+  var ids = ['btn-pen','btn-txt','btn-ers','btn-w2','btn-w4','btn-w8'];
+  ids.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.toggle('ctrl-disabled', disabled);
+  });
+  document.querySelectorAll('.dot').forEach(function(d) {
+    d.classList.toggle('ctrl-disabled', disabled);
+  });
+}
+
 function setMode(m) {
   mode = m;
   if (!fc) return;
@@ -248,6 +310,7 @@ function setMode(m) {
     wrap.style.touchAction = 'pan-y';
     document.getElementById('btn-nav').classList.add('active');
     document.getElementById('btn-drw').classList.remove('active');
+    setBrushControlsDisabled(true);
   } else {
     fc.isDrawingMode = (tool === 'pen' || tool === 'eraser');
     fc.wrapperEl.style.pointerEvents = 'auto';
@@ -255,6 +318,7 @@ function setMode(m) {
     wrap.style.touchAction = 'none';
     document.getElementById('btn-drw').classList.add('active');
     document.getElementById('btn-nav').classList.remove('active');
+    setBrushControlsDisabled(false);
     applyBrush();
   }
 }
@@ -276,19 +340,70 @@ function setTool(t) {
   }
 }
 
+var TEXT_FONT_SIZE = 18;
+
+function getTextInput() {
+  if (!textInput) {
+    textInput = document.getElementById('text-input');
+    // Durante a composição de um acento (´ + e) NÃO tocamos no textarea nem no
+    // canvas: mutar o layout do campo no meio da composição cancela o IME no
+    // WebView Android e o acento se perde. Só sincronizamos ao terminar.
+    textInput.addEventListener('compositionstart', function() { composing = true; });
+    textInput.addEventListener('compositionend', function() { composing = false; syncText(); });
+    textInput.addEventListener('input', function() { if (!composing) syncText(); });
+    textInput.addEventListener('blur', commitText);
+  }
+  return textInput;
+}
+
+// espelha o valor do textarea no objeto fabric (preview ao vivo no canvas)
+function syncText() {
+  if (!editingText) return;
+  editingText.set('text', textInput.value);
+  if (editingText.initDimensions) editingText.initDimensions();
+  editingText.setCoords();
+  fc.renderAll();
+  // cresce o textarea para acompanhar várias linhas (mantém o caret visível)
+  textInput.style.height = 'auto';
+  textInput.style.height = textInput.scrollHeight + 'px';
+}
+
+// finaliza a edição: descarta o objeto se ficou vazio
+function commitText() {
+  if (!editingText) return;
+  var obj = editingText;
+  editingText = null;
+  textInput.style.display = 'none';
+  textInput.value = '';
+  if (!obj.text || !obj.text.trim()) fc.remove(obj);
+  fc.renderAll();
+}
+
 function addText(opt) {
   if (opt.target) return;
+  commitText(); // fecha qualquer edição anterior antes de abrir outra
   var p = fc.getPointer(opt.e);
   var txt = new fabric.IText('', {
     left: p.x, top: p.y,
-    fontSize: 18, fill: color,
+    fontSize: TEXT_FONT_SIZE, fill: color,
     fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
-    editable: true,
   });
   fc.add(txt);
-  fc.setActiveObject(txt);
-  txt.enterEditing();
-  fc.renderAll();
+  editingText = txt;
+
+  var ta = getTextInput();
+  var rect = fc.upperCanvasEl.getBoundingClientRect();
+  // p é coordenada de cena (espaço-base); na tela a distância é p * zoom
+  var z = fc.getZoom();
+  ta.value = '';
+  ta.style.fontSize = (TEXT_FONT_SIZE * z) + 'px';
+  ta.style.caretColor = color;
+  ta.style.left = (rect.left + p.x * z) + 'px';
+  ta.style.top = (rect.top + p.y * z) + 'px';
+  ta.style.width = Math.max(40, rect.right - rect.left - p.x * z - 4) + 'px';
+  ta.style.height = (TEXT_FONT_SIZE * z + 8) + 'px';
+  ta.style.display = 'block';
+  ta.focus(); // dentro do gesto de toque → abre o teclado nativo
 }
 
 function applyBrush() {
@@ -345,6 +460,7 @@ function doClear() {
 
 // ── Save / Load ───────────────────────────────────────────────
 function doSave() {
+  commitText();
   if (isPdf) {
     saveCurrentPage();
     toRN({ type: 'save', fabricJson: JSON.stringify(pageData) });

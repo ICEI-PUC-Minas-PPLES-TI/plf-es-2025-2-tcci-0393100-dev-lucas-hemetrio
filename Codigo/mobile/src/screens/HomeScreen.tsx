@@ -409,97 +409,90 @@ export default function HomeScreen() {
 
                 {/* Split view */}
                 <PanelErrorBoundary>
-                <View className="flex-1 flex-row gap-4">
-                  {activeTab === 'documents' ? (
-                    <>
-                      <View className="w-72">
-                        <DocumentList
+                <View className="flex-1">
+                  <View style={{ display: activeTab === 'documents' ? 'flex' : 'none', flex: 1, flexDirection: 'row', gap: 16 }}>
+                    <View className="w-72">
+                      <DocumentList
+                        projectUid={selectedProject.uid}
+                        selectedDocumentId={selectedDocumentId}
+                        onSelectDocument={(id) => {
+                          setSelectedDocumentId(id);
+                          setSelectedInitialPage(undefined);
+                        }}
+                      />
+                    </View>
+                    <View className="flex-1">
+                      {selectedDocumentId ? (
+                        <CanvasEditor
+                          key={`${selectedDocumentId}:${selectedInitialPage ?? 1}`}
                           projectUid={selectedProject.uid}
-                          selectedDocumentId={selectedDocumentId}
-                          onSelectDocument={(id) => {
-                            setSelectedDocumentId(id);
-                            setSelectedInitialPage(undefined);
+                          documentUid={selectedDocumentId}
+                          initialPage={selectedInitialPage}
+                          onSaved={(annotation) => {
+                            setSelectedAnnotation(annotation);
+                            setSelectedAnnotationId(annotation.uid);
                           }}
                         />
-                      </View>
-                      <View className="flex-1">
-                        {selectedDocumentId ? (
-                          <CanvasEditor
-                            key={`${selectedDocumentId}:${selectedInitialPage ?? 1}`}
-                            projectUid={selectedProject.uid}
-                            documentUid={selectedDocumentId}
-                            initialPage={selectedInitialPage}
-                            onSaved={(annotation) => {
-                              setSelectedAnnotation(annotation);
-                              setSelectedAnnotationId(annotation.uid);
-                            }}
-                          />
-                        ) : (
-                          <View className="flex-1 items-center justify-center">
-                            <Text className="text-sm text-gray-400">Selecione um documento para visualizar.</Text>
-                          </View>
-                        )}
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      <View className="w-72">
-                        <AnnotationList
+                      ) : (
+                        <View className="flex-1 items-center justify-center">
+                          <Text className="text-sm text-gray-400">Selecione um documento para visualizar.</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={{ display: activeTab === 'annotations' ? 'flex' : 'none', flex: 1, flexDirection: 'row', gap: 16 }}>
+                    <View className="w-72">
+                      <AnnotationList
+                        projectUid={selectedProject.uid}
+                        selectedAnnotationId={selectedAnnotationId}
+                        onSelectAnnotation={(annotation) => {
+                          setSelectedAnnotationId(annotation.uid);
+                          setSelectedAnnotation(annotation);
+                          setPendingAnnotationDocUid(null);
+                        }}
+                        onNew={() => {
+                          setSelectedAnnotationId('new');
+                          setSelectedAnnotation(null);
+                          setPendingAnnotationDocUid(null);
+                        }}
+                      />
+                    </View>
+                    <View className="flex-1">
+                      {selectedAnnotationId === 'new' ? (
+                        <CanvasEditor
+                          key="new"
                           projectUid={selectedProject.uid}
-                          selectedAnnotationId={selectedAnnotationId}
-                          onSelectAnnotation={(annotation) => {
+                          documentUid={pendingAnnotationDocUid ?? undefined}
+                          onSaved={(annotation) => {
                             setSelectedAnnotationId(annotation.uid);
                             setSelectedAnnotation(annotation);
                             setPendingAnnotationDocUid(null);
                           }}
-                          onNew={() => {
-                            setSelectedAnnotationId('new');
-                            setSelectedAnnotation(null);
-                            setPendingAnnotationDocUid(null);
+                        />
+                      ) : selectedAnnotation ? (
+                        <CanvasEditor
+                          key={selectedAnnotation.uid}
+                          projectUid={selectedProject.uid}
+                          documentUid={selectedAnnotation.document_uid ?? undefined}
+                          annotationUid={selectedAnnotation.uid}
+                          initialTitle={selectedAnnotation.title}
+                          onSaved={(annotation) => {
+                            setSelectedAnnotation(annotation);
                           }}
                         />
-
-
-
-
-                        
-                      </View>
-                      <View className="flex-1">
-                        {selectedAnnotationId === 'new' ? (
-                          <CanvasEditor
-                            key="new"
-                            projectUid={selectedProject.uid}
-                            documentUid={pendingAnnotationDocUid ?? undefined}
-                            onSaved={(annotation) => {
-                              setSelectedAnnotationId(annotation.uid);
-                              setSelectedAnnotation(annotation);
-                              setPendingAnnotationDocUid(null);
-                            }}
-                          />
-                        ) : selectedAnnotation ? (
-                          <CanvasEditor
-                            key={selectedAnnotation.uid}
-                            projectUid={selectedProject.uid}
-                            documentUid={selectedAnnotation.document_uid ?? undefined}
-                            annotationUid={selectedAnnotation.uid}
-                            initialTitle={selectedAnnotation.title}
-                            onSaved={(annotation) => {
-                              setSelectedAnnotation(annotation);
-                            }}
-                          />
-                        ) : (
-                          <View className="flex-1 items-center justify-center gap-4 px-8">
-                            <Text className="text-center text-base font-semibold text-gray-800">
-                              Nenhuma anotação selecionada
-                            </Text>
-                            <Text className="text-center text-sm text-gray-500">
-                              Toque em "Nova" para criar uma anotação ou selecione uma existente.
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    </>
-                  )}
+                      ) : (
+                        <View className="flex-1 items-center justify-center gap-4 px-8">
+                          <Text className="text-center text-base font-semibold text-gray-800">
+                            Nenhuma anotação selecionada
+                          </Text>
+                          <Text className="text-center text-sm text-gray-500">
+                            Toque em "Nova" para criar uma anotação ou selecione uma existente.
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
                 </View>
                 </PanelErrorBoundary>
               </>

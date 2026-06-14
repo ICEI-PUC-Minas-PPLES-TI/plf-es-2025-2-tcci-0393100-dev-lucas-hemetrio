@@ -3,6 +3,7 @@ import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  type LayoutChangeEvent,
   Text,
   TextInput,
   View,
@@ -44,6 +45,17 @@ export default function CanvasEditor({
   function inject(msg: object) {
     const js = `window.receiveMessage(${JSON.stringify(msg)}); true;`;
     webViewRef.current?.injectJavaScript(js);
+  }
+
+  // largura do container na última medição — detecta resize (ex.: sidebar abrir/
+  // fechar empurra o painel) para o canvas reescalar sem remontar nem cortar nada.
+  const lastWidth = useRef(0);
+  function onContainerLayout(event: LayoutChangeEvent) {
+    const width = Math.round(event.nativeEvent.layout.width);
+    if (lastWidth.current && width !== lastWidth.current) {
+      inject({ type: 'resize' });
+    }
+    lastWidth.current = width;
   }
 
   function requestPng(): Promise<string> {
@@ -184,8 +196,11 @@ export default function CanvasEditor({
   }
 
   return (
-    <View className="flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white">
-      {!documentUid && (
+    <View
+      className="flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white"
+      onLayout={onContainerLayout}
+    >
+      {!documentUid && !annotationUid && (
         <View className="border-b border-gray-100 px-4 py-3">
           <TextInput
             className="text-base font-semibold text-gray-900"

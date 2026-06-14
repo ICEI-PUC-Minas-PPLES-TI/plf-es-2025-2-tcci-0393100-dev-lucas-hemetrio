@@ -1,13 +1,93 @@
 """Testes do aggregator puro. Sem Neo4j, sem rede."""
+from unittest.mock import patch
+
 import pytest
 
 from app.services.knowledge_aggregator import aggregate_sources
+from app.services.knowledge_extractor import ExtractedEntity, ExtractedSentence
 from app.services.spacy_loader import get_nlp
 
 
 @pytest.fixture(scope="session")
 def nlp():
     return get_nlp()
+
+
+def _sent(idx, ents):
+    """ExtractedSentence com entidades controladas: ents = [(label, norm, display)]."""
+    return ExtractedSentence(
+        sentence_idx=idx,
+        sentence_text=f"s{idx}",
+        entities=[
+            ExtractedEntity(label=l, text_norm=n, text_display=d, surface_text=d)
+            for l, n, d in ents
+        ],
+    )
+
+
+def test_same_name_different_labels_merge_into_one_node():
+    # NER instável marca a mesma entidade como LOC numa fonte e ORG noutra; devem
+    # virar UM nó só — identidade por nome (text_norm), não por rótulo.
+    def fake_extract(text, _nlp):
+        if text == "ann":
+            return [_sent(0, [("LOC", "revista bioetica", "Revista Bioetica")])]
+        return [_sent(0, [("ORG", "revista bioetica", "Revista Bioética")])]
+
+    with patch(
+        "app.services.knowledge_aggregator.extract_from_text", side_effect=fake_extract
+    ):
+        nodes, mentions, _ = aggregate_sources(
+            [("ann", "annotation", "ann-1"), ("pg", "page", "pg-1")], nlp=None
+        )
+
+    assert len(nodes) == 1
+    key = next(iter(nodes))
+    assert nodes[key]["mention_count"] == 2
+
+
+def test_merged_node_uses_dominant_label():
+    # Rótulo do nó mesclado = o mais frequente entre as menções (2 ORG vs 1 LOC).
+    def fake_extract(text, _nlp):
+        label = "LOC" if text == "src0" else "ORG"
+        return [_sent(0, [(label, "x", "X")])]
+
+    with patch(
+        "app.services.knowledge_aggregator.extract_from_text", side_effect=fake_extract
+    ):
+        nodes, _, _ = aggregate_sources(
+            [("src0", "page", "p"), ("src1", "page", "p"), ("src2", "page", "p")],
+            nlp=None,
+        )
+
+    key = next(iter(nodes))
+    assert nodes[key]["label"] == "ORG"
+
+
+def test_annotation_cooccurs_across_sentences():
+    # Numa anotação (nota = uma ideia), entidades em sentenças diferentes ainda
+    # co-ocorrem — não dependem da segmentação frágil do spaCy.
+    def fake_extract(text, _nlp):
+        return [_sent(0, [("LOC", "a", "A")]), _sent(1, [("LOC", "b", "B")])]
+
+    with patch(
+        "app.services.knowledge_aggregator.extract_from_text", side_effect=fake_extract
+    ):
+        _, _, edges = aggregate_sources([("t", "annotation", "ann-1")], nlp=None)
+
+    assert ("a", "b") in edges
+
+
+def test_page_does_not_cooccur_across_sentences():
+    # Página continua por sentença: entidades em sentenças diferentes NÃO conectam.
+    def fake_extract(text, _nlp):
+        return [_sent(0, [("LOC", "a", "A")]), _sent(1, [("LOC", "b", "B")])]
+
+    with patch(
+        "app.services.knowledge_aggregator.extract_from_text", side_effect=fake_extract
+    ):
+        _, _, edges = aggregate_sources([("t", "page", "pg-1")], nlp=None)
+
+    assert edges == {}
 
 
 def test_aggregate_empty_sources(nlp):
@@ -36,8 +116,8 @@ def test_edge_weight_accumulates_across_sentences(nlp):
     sources = [(text, "page", "pg-1")]
     nodes, mentions, edges = aggregate_sources(sources, nlp)
 
-    lula_key = next(k for k in nodes if k[1] == "lula")
-    brasil_key = next(k for k in nodes if "brasil" in k[1])
+    lula_key = next(k for k in nodes if k == "lula")
+    brasil_key = next(k for k in nodes if "brasil" in k)
     edge_key = tuple(sorted([lula_key, brasil_key]))
     assert edges[edge_key] == 3
 
@@ -46,7 +126,7 @@ def test_mention_count_reflects_occurrences(nlp):
     text = "Lula falou. Lula respondeu. Bolsonaro também."
     sources = [(text, "page", "pg-1")]
     nodes, _, _ = aggregate_sources(sources, nlp)
-    lula_key = next(k for k in nodes if k[1] == "lula")
+    lula_key = next(k for k in nodes if k == "lula")
     assert nodes[lula_key]["mention_count"] == 2
 
 
@@ -64,7 +144,7 @@ def test_multiple_sources_share_nodes(nlp):
         ("Lula esteve no Brasil em março.", "annotation", "ann-1"),
     ]
     nodes, mentions, _ = aggregate_sources(sources, nlp)
-    lula_key = next(k for k in nodes if k[1] == "lula")
+    lula_key = next(k for k in nodes if k == "lula")
     lula_mentions = [m for m in mentions if m["key"] == lula_key]
     assert len(lula_mentions) == 2
     assert {m["origin_kind"] for m in lula_mentions} == {"page", "annotation"}

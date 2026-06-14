@@ -1,5 +1,6 @@
 import io
 from datetime import timedelta
+from typing import BinaryIO, Iterator
 
 from minio import Minio
 
@@ -32,6 +33,18 @@ class MinioStorageBackend(StorageBackend):
         )
         return object_name
 
+    def upload_stream(
+        self, stream: BinaryIO, object_name: str, length: int, content_type: str
+    ) -> str:
+        self._client.put_object(
+            self._bucket,
+            object_name,
+            stream,
+            length=length,
+            content_type=content_type,
+        )
+        return object_name
+
     def delete_file(self, object_name: str) -> None:
         self._client.remove_object(self._bucket, object_name)
 
@@ -46,6 +59,31 @@ class MinioStorageBackend(StorageBackend):
         response = self._client.get_object(self._bucket, object_name)
         try:
             return response.read()
+        finally:
+            response.close()
+            response.release_conn()
+
+    def stat_file(self, object_name: str) -> int:
+        return self._client.stat_object(self._bucket, object_name).size
+
+    def stream_file(
+        self, object_name: str, chunk_size: int = 1024 * 1024
+    ) -> Iterator[bytes]:
+        response = self._client.get_object(self._bucket, object_name)
+        try:
+            yield from response.stream(chunk_size)
+        finally:
+            response.close()
+            response.release_conn()
+
+    def stream_range(
+        self, object_name: str, offset: int, length: int, chunk_size: int = 1024 * 1024
+    ) -> Iterator[bytes]:
+        response = self._client.get_object(
+            self._bucket, object_name, offset=offset, length=length
+        )
+        try:
+            yield from response.stream(chunk_size)
         finally:
             response.close()
             response.release_conn()

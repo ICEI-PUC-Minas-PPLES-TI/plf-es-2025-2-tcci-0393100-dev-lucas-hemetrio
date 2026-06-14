@@ -23,6 +23,7 @@ def _document(uid="d-1", title="artigo.pdf"):
         created_at=datetime.now(timezone.utc),
         pages=SimpleNamespace(all=lambda: []),
         save=MagicMock(),
+        delete=MagicMock(),
     )
 
 
@@ -38,6 +39,8 @@ def _user_with_project(documents=None):
 def _fake_storage():
     storage = MagicMock()
     storage.get_presigned_url.return_value = "https://signed.example/doc.pdf"
+    storage.stat_file.return_value = 13
+    storage.stream_file.return_value = iter([b"%PDF-1.4 body"])
     return storage
 
 
@@ -51,13 +54,15 @@ def test_upload_requires_auth(fake_pdf_bytes):
 
 
 def test_upload_valid_pdf_creates_processing_document(fake_pdf_bytes):
+    """Upload é assíncrono: persiste PROCESSING e delega o pipeline ao worker em
+    subprocesso, sem rodar OCR inline."""
     user, project = _user_with_project()
     app.dependency_overrides[get_current_user] = lambda: user
     app.dependency_overrides[get_storage] = _fake_storage
     try:
         with patch("app.api.routes.documents.Document") as MockDocument, patch(
-            "app.api.routes.documents.process_document"
-        ):
+            "app.api.routes.documents.spawn_worker"
+        ) as mock_spawn:
             MockDocument.return_value.save.return_value = _document()
             client = TestClient(app)
             r = client.post(
@@ -72,6 +77,143 @@ def test_upload_valid_pdf_creates_processing_document(fake_pdf_bytes):
     assert body["status"] == "PROCESSING"
     assert body["page_count"] == 0
     project.documents.connect.assert_called_once()
+    # delega ao worker em subprocesso, modo "document"
+    assert mock_spawn.call_args.args[0] == "document"
+
+
+def test_upload_marks_failed_when_worker_spawn_fails(fake_pdf_bytes):
+    """Se o subprocesso não inicia, o documento não pode ficar preso em PROCESSING."""
+    user, _ = _user_with_project()
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_storage] = _fake_storage
+    saved_doc = _document()
+    try:
+        with patch("app.api.routes.documents.Document") as MockDocument, patch(
+            "app.api.routes.documents.spawn_worker", side_effect=OSError("no fork")
+        ):
+            MockDocument.return_value.save.return_value = saved_doc
+            client = TestClient(app)
+            r = client.post(
+                "/api/projects/p-1/documents",
+                files={"file": ("artigo.pdf", fake_pdf_bytes, "application/pdf")},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert r.status_code == 201
+    assert r.json()["status"] == "FAILED"
+
+
+def test_reprocess_spawns_worker():
+    user, _ = _user_with_project(documents=[_document(uid="d-1")])
+    app.dependency_overrides[get_current_user] = lambda: user
+    try:
+        with patch("app.api.routes.documents.spawn_worker") as mock_spawn:
+            client = TestClient(app)
+            r = client.post("/api/projects/p-1/documents/d-1/reprocess")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert r.status_code == 202
+    mock_spawn.assert_called_once_with("document", "d-1")
+
+
+def test_delete_triggers_graph_rebuild():
+    """Apagar documento reconstrói o grafo do projeto — evita vértices órfãos."""
+    user, _ = _user_with_project(documents=[_document(uid="d-1")])
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_storage] = _fake_storage
+    try:
+        with patch("app.api.routes.documents.spawn_worker") as mock_spawn:
+            client = TestClient(app)
+            r = client.delete("/api/projects/p-1/documents/d-1")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert r.status_code == 204
+    mock_spawn.assert_called_once_with("rebuild", "p-1")
+
+
+def test_stream_returns_pdf_body():
+    user, _ = _user_with_project(documents=[_document(uid="d-1")])
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_storage] = _fake_storage
+    try:
+        client = TestClient(app)
+        r = client.get("/api/projects/p-1/documents/d-1/stream")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/pdf"
+    assert r.headers["accept-ranges"] == "bytes"
+    assert r.content == b"%PDF-1.4 body"
+
+
+def test_stream_exposes_range_headers_for_cors():
+    """pdf.js (cross-origin no WebView) só usa carregamento progressivo se conseguir
+    LER Accept-Ranges/Content-Range/Content-Length — exige expose_headers no CORS."""
+    user, _ = _user_with_project(documents=[_document(uid="d-1")])
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_storage] = _fake_storage
+    try:
+        client = TestClient(app)
+        r = client.get(
+            "/api/projects/p-1/documents/d-1/stream",
+            headers={"Origin": "http://localhost:3000"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert r.status_code == 200
+    exposed = r.headers.get("access-control-expose-headers", "")
+    assert "Accept-Ranges" in exposed
+    assert "Content-Range" in exposed
+
+
+def test_stream_serves_partial_content_for_range():
+    """Carregamento progressivo: um header Range retorna 206 com só o trecho pedido."""
+    storage = _fake_storage()
+    storage.stat_file.return_value = 100
+    storage.stream_range.return_value = iter([b"slice"])
+
+    user, _ = _user_with_project(documents=[_document(uid="d-1")])
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_storage] = lambda: storage
+    try:
+        client = TestClient(app)
+        r = client.get(
+            "/api/projects/p-1/documents/d-1/stream",
+            headers={"Range": "bytes=0-4"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert r.status_code == 206
+    assert r.headers["content-range"] == "bytes 0-4/100"
+    assert r.headers["content-length"] == "5"
+    assert r.content == b"slice"
+    storage.stream_range.assert_called_once_with("projects/p-1/d-1.pdf", 0, 5)
+
+
+def test_stream_returns_416_for_unsatisfiable_range():
+    storage = _fake_storage()
+    storage.stat_file.return_value = 100
+
+    user, _ = _user_with_project(documents=[_document(uid="d-1")])
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_storage] = lambda: storage
+    try:
+        client = TestClient(app)
+        r = client.get(
+            "/api/projects/p-1/documents/d-1/stream",
+            headers={"Range": "bytes=999-1500"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert r.status_code == 416
+    assert r.headers["content-range"] == "bytes */100"
 
 
 def test_upload_rejects_non_pdf(fake_png_bytes):

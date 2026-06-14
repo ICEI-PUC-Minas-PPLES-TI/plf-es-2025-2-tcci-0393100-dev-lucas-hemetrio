@@ -4,8 +4,20 @@ Modelo spaCy é carregado uma vez por sessão via fixture.
 """
 import pytest
 
-from app.services.knowledge_extractor import extract_from_text
+from app.services.knowledge_extractor import _normalize, extract_from_text
 from app.services.spacy_loader import get_nlp
+
+
+def test_normalize_folds_accents():
+    # "Bioética" e "Bioetica" devem virar a mesma chave de nó no grafo —
+    # robustez a erro de digitação/OCR e a anotações sem acento.
+    assert _normalize("Bioética") == _normalize("Bioetica")
+    assert _normalize("Revista Bioética") == "revista bioetica"
+
+
+def test_normalize_folds_cedilla_and_tilde():
+    assert _normalize("Anotação") == "anotacao"
+    assert _normalize("São Paulo") == "sao paulo"
 
 
 @pytest.fixture(scope="session")

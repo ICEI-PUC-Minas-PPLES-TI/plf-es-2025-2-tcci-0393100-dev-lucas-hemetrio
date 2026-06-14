@@ -2,6 +2,7 @@
 
 Função pura — sem Neo4j, sem efeitos colaterais. Carrega o modelo via spacy_loader.
 """
+import unicodedata
 from dataclasses import dataclass
 
 _ALLOWED_LABELS = {"PER", "LOC", "ORG"}
@@ -23,7 +24,11 @@ class ExtractedSentence:
 
 
 def _normalize(text: str) -> str:
-    return text.strip().lower()
+    # Remove diacríticos (acentos/cedilha) para que a chave do nó seja insensível
+    # a acento: "Bioética" e "Bioetica" → mesma entidade no grafo. O text_display
+    # preserva a forma original; só o text_norm (chave) é dobrado.
+    decomposed = unicodedata.normalize("NFKD", text.strip().lower())
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
 
 
 def extract_from_text(text: str, nlp) -> list[ExtractedSentence]:

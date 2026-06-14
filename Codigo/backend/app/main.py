@@ -49,6 +49,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Sem isso o pdf.js (cross-origin, no WebView) não consegue LER esses headers e
+    # não detecta suporte a Range — cai para baixar o PDF inteiro. Necessário para o
+    # carregamento progressivo de PDFs grandes.
+    expose_headers=["Accept-Ranges", "Content-Range", "Content-Length"],
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
